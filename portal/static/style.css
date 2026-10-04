@@ -110,3 +110,5 @@ td select { font: inherit; font-size: 13px; padding: 4px; border-radius: 6px; bo
 td button { padding: 5px 10px; font-size: 13px; }
 .muted { color: var(--muted); }
 td:first-child strong { white-space: nowrap; }
+code { overflow-wrap: anywhere; }
+input[type=file] { max-width: 100%; }

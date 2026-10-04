@@ -23,17 +23,51 @@
       {% for s in statuses %}
       <div class="stat"><div class="n">{{ counts[s] }}</div><div class="l">{{ s | capitalize }}</div></div>
       {% endfor %}
-      <div class="stat"><div class="n">{{ roster_size }}</div><div class="l">Students on roster</div></div>
+      <div class="stat"><div class="n">{{ roster.size }}</div><div class="l">Students on roster</div></div>
     </div>
+
+    <section class="card" id="roster">
+      <div class="step-head" style="margin-bottom:8px"><h2>Enrolment roster</h2></div>
+      <p class="muted" style="margin:0 0 16px">
+        {% if roster.uploaded %}Uploaded {{ roster.updated }}{% else %}Using the sample roster ({{ roster.file }}){% endif %}
+        · {{ roster.size }} students.
+        Students can only enter if their ID and email are on this list.
+      </p>
+
+      {% if roster_result %}
+        {% if roster_result.ok %}
+          <div class="notice ok"><strong>Roster updated from {{ roster_result.filename }}</strong>
+            {{ roster_result.total }} students loaded, {{ roster_result.eligible }} of them able to enter.{% if roster_result.backed_up %} The previous roster was backed up.{% endif %}</div>
+        {% else %}
+          <div class="notice bad"><strong>The roster wasn't changed</strong>
+            <ul>{% for e in roster_result.errors %}<li>{{ e }}</li>{% endfor %}</ul></div>
+        {% endif %}
+        {% if roster_result.warnings %}
+          <div class="notice warn"><strong>Check these before the event</strong>
+            <ul>{% for w in roster_result.warnings %}<li>{{ w }}</li>{% endfor %}</ul></div>
+        {% endif %}
+      {% endif %}
+
+      <form method="post" action="{{ url_for('admin_upload_roster') }}" enctype="multipart/form-data" style="margin-top:16px">
+        <label for="rosterFile">Upload this year's enrolment list</label>
+        <p class="hint" style="margin:0 0 10px">A CSV file with the columns <code>{{ roster_columns | join(',') }}</code>.
+          The file is checked first, and the current roster is only replaced if it passes.</p>
+        <div class="row">
+          <input type="file" id="rosterFile" name="roster" accept=".csv,text/csv" required>
+          <button type="submit">Upload and replace</button>
+        </div>
+      </form>
+      <p class="hint" style="margin:14px 0 0">
+        <a href="{{ url_for('admin_roster_template') }}">Download a blank template</a> ·
+        <a href="{{ url_for('admin_download_roster') }}">Download the current roster</a>
+      </p>
+    </section>
 
     <section class="card">
       <div class="row" style="justify-content:space-between;margin-bottom:12px">
         <p class="muted" style="margin:0">Every entry here has already passed the postgraduate and A1 checks.
           {% if levels %}By level: {% for k, v in levels.items() %}{{ k }} {{ v }}{% if not loop.last %}, {% endif %}{% endfor %}.{% endif %}</p>
-        <div class="row">
-          <form method="post" action="{{ url_for('admin_reload_roster') }}"><button class="secondary">Reload roster</button></form>
-          <a href="{{ url_for('admin_export') }}"><button type="button">Export CSV</button></a>
-        </div>
+        <a href="{{ url_for('admin_export') }}"><button type="button">Export CSV</button></a>
       </div>
       {% if submissions %}
       <div class="table-wrap">

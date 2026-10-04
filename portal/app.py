@@ -5,19 +5,20 @@ import hmac
 import io
 import os
 import secrets
-from datetime import date
+from datetime import date, datetime
 from functools import wraps
 from pathlib import Path
 
-from flask import (Flask, Response, abort, jsonify, redirect, render_template, request,
-                   send_file, session, url_for)
+from flask import (Flask, Response, abort, jsonify, redirect,
+                   render_template, request, send_file, session, url_for)
 
 from .config import Config
-from .eligibility import Roster, check_eligibility
+from .eligibility import ROSTER_COLUMNS, Roster, check_eligibility, check_roster_file
 from .poster import check_poster
 from .store import STATUSES, Store
 
 ABSTRACT_WORD_LIMIT = 250
+MAX_ROSTER_MB = 5
 TEXT_LIMITS = {"department": 120, "supervisor": 120, "title": 200}
 
 
@@ -28,7 +29,9 @@ def create_app(config: Config | None = None) -> Flask:
     app.secret_key = os.getenv("SECRET_KEY") or secrets.token_hex(32)
 
     config.upload_dir.mkdir(parents=True, exist_ok=True)
-    roster = Roster(config.roster_path)
+    # A roster uploaded through the dashboard takes priority over ROSTER_PATH.
+    uploaded_roster = config.data_dir / "roster.csv"
+    roster = Roster(uploaded_roster if uploaded_roster.exists() else config.roster_path)
     store = Store(config.db_path)
     app.extensions["portal"] = {"config": config, "roster": roster, "store": store}
 
@@ -161,8 +164,16 @@ def create_app(config: Config | None = None) -> Flask:
         levels: dict[str, int] = {}
         for r in subs:
             levels[r["level"]] = levels.get(r["level"], 0) + 1
+        roster_info = {
+            "size": len(roster),
+            "uploaded": roster.path == uploaded_roster,
+            "file": roster.path.name,
+            "updated": datetime.fromtimestamp(roster.path.stat().st_mtime).strftime("%d %b %Y, %I:%M %p"),
+        }
         return render_template("admin.html", config=config, submissions=subs, counts=counts,
-                               levels=levels, statuses=STATUSES, roster_size=len(roster))
+                               levels=levels, statuses=STATUSES, roster=roster_info,
+                               roster_columns=ROSTER_COLUMNS,
+                               roster_result=session.pop("roster_result", None))
 
     @app.post("/admin/submissions/<sid>/status")
     @admin_required
@@ -193,10 +204,53 @@ def create_app(config: Config | None = None) -> Flask:
         return Response(buf.getvalue(), mimetype="text/csv",
                         headers={"Content-Disposition": "attachment; filename=showcase-submissions.csv"})
 
-    @app.post("/admin/roster/reload")
+    @app.post("/admin/roster/upload")
     @admin_required
-    def admin_reload_roster():
-        roster.reload()
-        return redirect(url_for("admin"))
+    def admin_upload_roster():
+        file = request.files.get("roster")
+        if not file or not file.filename:
+            result = {"ok": False, "errors": ["Choose a CSV file to upload."], "warnings": []}
+        elif not file.filename.lower().endswith(".csv"):
+            result = {"ok": False, "errors": [
+                "Upload a .csv file. In Excel, use File > Save As and choose CSV UTF-8."], "warnings": []}
+        else:
+            data = file.read(MAX_ROSTER_MB * 1024 * 1024 + 1)
+            if len(data) > MAX_ROSTER_MB * 1024 * 1024:
+                result = {"ok": False, "errors": [f"The file is over {MAX_ROSTER_MB} MB."], "warnings": []}
+            else:
+                check = check_roster_file(data, config)
+                result = {"ok": check.ok, "errors": check.errors, "warnings": check.warnings,
+                          "filename": Path(file.filename).name, "total": check.total,
+                          "eligible": check.eligible}
+                if check.ok:
+                    result["backed_up"] = _replace_roster(check.text)
+        session["roster_result"] = result
+        return redirect(url_for("admin") + "#roster")
+
+    def _replace_roster(text: str) -> bool:
+        backed_up = uploaded_roster.exists()
+        if backed_up:
+            backups = config.data_dir / "roster-backups"
+            backups.mkdir(exist_ok=True)
+            stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+            uploaded_roster.replace(backups / f"roster-{stamp}.csv")
+        tmp = uploaded_roster.with_suffix(".tmp")
+        tmp.write_text(text, encoding="utf-8", newline="")
+        tmp.replace(uploaded_roster)
+        roster.use(uploaded_roster)
+        return backed_up
+
+    @app.get("/admin/roster/current.csv")
+    @admin_required
+    def admin_download_roster():
+        return send_file(roster.path, mimetype="text/csv", as_attachment=True,
+                         download_name="current-roster.csv")
+
+    @app.get("/admin/roster/template.csv")
+    @admin_required
+    def admin_roster_template():
+        example = "1234567,j.smith@aucklanduni.ac.nz,Jo Smith,Master of Science (Biology),Masters,Science"
+        return Response(",".join(ROSTER_COLUMNS) + "\r\n" + example + "\r\n", mimetype="text/csv",
+                        headers={"Content-Disposition": "attachment; filename=roster-template.csv"})
 
     return app
