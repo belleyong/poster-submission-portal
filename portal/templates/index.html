@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Submit a poster · {{ config.event_name }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:wght@600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="masthead">
+    <div class="inner">
+      <p class="eyebrow">Faculty of {{ config.eligible_faculty }}</p>
+      <h1>{{ config.event_name }}</h1>
+      <p>Submit your research poster. We check your eligibility and your poster size as you go, so you can fix any problems before you submit.</p>
+    </div>
+  </header>
+
+  <main>
+  {% if not is_open %}
+    <section class="card">
+      <h2>Submissions have closed</h2>
+      <p>Entries for this year's showcase closed on {{ config.submissions_close }}. Contact the organisers if you have a question about your entry.</p>
+    </section>
+  {% else %}
+    <form id="entry" novalidate>
+      <!-- Step 1 -->
+      <section class="card" id="step1">
+        <div class="step-head"><span class="step-num" data-step="1">1</span><h2>Check you're eligible</h2></div>
+        <p class="hint">The showcase is open to postgraduate students ({{ config.eligible_levels | join(', ') }}) enrolled in the Faculty of {{ config.eligible_faculty }}.</p>
+        <div class="grid">
+          <div class="field">
+            <label for="student_id">Student ID</label>
+            <input type="text" id="student_id" name="student_id" inputmode="numeric" autocomplete="off" required>
+          </div>
+          <div class="field">
+            <label for="email">University email</label>
+            <input type="email" id="email" name="email" placeholder="you@{{ config.email_domains[0] }}" required>
+          </div>
+        </div>
+        <button type="button" id="checkElig">Check eligibility</button>
+        <div id="eligResult" aria-live="polite"></div>
+      </section>
+
+      <!-- Step 2 -->
+      <section class="card locked" id="step2">
+        <div class="step-head"><span class="step-num" data-step="2">2</span><h2>Tell us about your research</h2></div>
+        <div class="grid">
+          <div class="field">
+            <label for="department">Department or school</label>
+            <input type="text" id="department" name="department" maxlength="120" required>
+          </div>
+          <div class="field">
+            <label for="supervisor">Main supervisor</label>
+            <input type="text" id="supervisor" name="supervisor" maxlength="120" required>
+          </div>
+        </div>
+        <div class="field">
+          <label for="title">Poster title</label>
+          <input type="text" id="title" name="title" maxlength="200" required>
+        </div>
+        <div class="field">
+          <label for="abstract">Abstract <span class="hint">· up to {{ word_limit }} words</span></label>
+          <textarea id="abstract" name="abstract" required></textarea>
+          <div class="counter" id="wordCount">0 / {{ word_limit }} words</div>
+        </div>
+      </section>
+
+      <!-- Step 3 -->
+      <section class="card locked" id="step3">
+        <div class="step-head"><span class="step-num" data-step="3">3</span><h2>Upload your A1 poster</h2></div>
+        <p class="hint">A single-page PDF at A1 (594 × 841 mm, portrait or landscape) is best. PNG or JPEG are accepted at {{ config.min_image_dpi }} DPI or higher. Max {{ config.max_upload_mb }} MB.</p>
+        <label class="drop" id="drop">
+          <input type="file" id="poster" name="poster" accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg">
+          <div class="big" id="dropLabel">Drop your poster here or click to choose a file</div>
+          <div class="hint">PDF, PNG or JPEG</div>
+        </label>
+        <div id="posterResult" aria-live="polite"></div>
+      </section>
+
+      <!-- Submit -->
+      <section class="card locked" id="step4">
+        <label class="check">
+          <input type="checkbox" id="declaration" name="declaration">
+          <span>I confirm this poster is my own work, my supervisor is aware of this entry, and I'm happy for it to be displayed at the showcase.</span>
+        </label>
+        <div class="row" style="margin-top:18px">
+          <button type="submit" id="submitBtn" disabled>Submit entry</button>
+          <span class="hint" id="submitHint">Complete every step to submit.</span>
+        </div>
+        <div id="submitResult" aria-live="polite"></div>
+      </section>
+    </form>
+
+    <section class="card success hidden" id="done">
+      <p class="eyebrow" style="color:var(--muted)">Entry received</p>
+      <h2 id="doneName" style="font-family:var(--serif)">Thanks!</h2>
+      <p>Your reference number is</p>
+      <div class="ref" id="doneRef"></div>
+      <p class="hint">Keep this for your records. The organisers will be in touch about the showcase day.</p>
+    </section>
+  {% endif %}
+  </main>
+
+  <footer>{{ config.event_name }} · Questions? Contact the event organisers.</footer>
+
+  <script>
+    window.PORTAL = { wordLimit: {{ word_limit }}, maxMb: {{ config.max_upload_mb }} };
+  </script>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

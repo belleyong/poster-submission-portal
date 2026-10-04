@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Submissions · {{ config.event_name }}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:wght@600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="admin">
+  <header class="masthead">
+    <div class="inner">
+      <div>
+        <p class="eyebrow">{{ config.event_name }}</p>
+        <h1>Submissions</h1>
+      </div>
+      <form method="post" action="{{ url_for('admin_logout') }}"><button class="secondary" style="color:#fff;border-color:#fff">Sign out</button></form>
+    </div>
+  </header>
+  <main>
+    <div class="stats">
+      <div class="stat"><div class="n">{{ submissions | length }}</div><div class="l">Entries</div></div>
+      {% for s in statuses %}
+      <div class="stat"><div class="n">{{ counts[s] }}</div><div class="l">{{ s | capitalize }}</div></div>
+      {% endfor %}
+      <div class="stat"><div class="n">{{ roster_size }}</div><div class="l">Students on roster</div></div>
+    </div>
+
+    <section class="card">
+      <div class="row" style="justify-content:space-between;margin-bottom:12px">
+        <p class="muted" style="margin:0">Every entry here has already passed the postgraduate and A1 checks.
+          {% if levels %}By level: {% for k, v in levels.items() %}{{ k }} {{ v }}{% if not loop.last %}, {% endif %}{% endfor %}.{% endif %}</p>
+        <div class="row">
+          <form method="post" action="{{ url_for('admin_reload_roster') }}"><button class="secondary">Reload roster</button></form>
+          <a href="{{ url_for('admin_export') }}"><button type="button">Export CSV</button></a>
+        </div>
+      </div>
+      {% if submissions %}
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Ref</th><th>Entrant</th><th>Poster</th><th>File</th><th>Status</th></tr></thead>
+          <tbody>
+          {% for s in submissions %}
+            <tr>
+              <td><strong>{{ s.reference }}</strong><br><span class="muted">{{ s.created_at[:10] }}</span></td>
+              <td>{{ s.name }}<br><span class="muted">{{ s.level }} · {{ s.department }}<br>Supervisor: {{ s.supervisor }}</span></td>
+              <td>{{ s.title }}</td>
+              <td><a href="{{ url_for('admin_poster', sid=s.id) }}" target="_blank">{{ s.file_type | upper }}</a><br>
+                <span class="muted">{% if s.poster_width_mm %}{{ '%.0f' % s.poster_width_mm }} × {{ '%.0f' % s.poster_height_mm }} mm{% else %}A1 image{% endif %} · {{ s.orientation }}</span></td>
+              <td>
+                <span class="pill {{ s.status }}">{{ s.status }}</span>
+                <form method="post" action="{{ url_for('admin_status', sid=s.id) }}" style="display:block;margin-top:6px">
+                  <select name="status" aria-label="Status">
+                    {% for st in statuses %}<option value="{{ st }}" {% if st == s.status %}selected{% endif %}>{{ st }}</option>{% endfor %}
+                  </select>
+                  <button>Save</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+        <p class="muted">No entries yet.</p>
+      {% endif %}
+    </section>
+  </main>
+</body>
+</html>
