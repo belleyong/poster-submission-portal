@@ -1,0 +1,7 @@
+student_id,email,name,programme,level,faculty
+100000001,a.tester@aucklanduni.ac.nz,Ava Tester,Doctor of Philosophy (Biological Sciences),PhD,Science
+100000002,b.sample@aucklanduni.ac.nz,Ben Sample,Master of Science (Chemistry),Masters,Science
+100000003,c.example@aucklanduni.ac.nz,Chloe Example,Bachelor of Science (Honours) (Physics),Honours,Science
+100000004,d.demo@aucklanduni.ac.nz,Dev Demo,Postgraduate Diploma in Science (Statistics),PGDip,Science
+100000005,e.under@aucklanduni.ac.nz,Ella Undergrad,Bachelor of Science (Psychology),Undergraduate,Science
+100000006,f.other@aucklanduni.ac.nz,Finn Other,Master of Engineering,Masters,Engineering
