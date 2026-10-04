@@ -35,7 +35,7 @@ The portal needs Python 3.11 or newer.
 ```bash
 pip install -r requirements.txt
 ADMIN_TOKEN=choose-a-code python run.py
-# open http://localhost:5000
+# open http://localhost:8000
 ```
 
 The sample roster in `data/roster.sample.csv` contains only fictional students. You can use them to try the portal:
