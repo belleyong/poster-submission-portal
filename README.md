@@ -26,7 +26,7 @@ The portal checks both of these while the entrant fills in the form, so they get
 - Summary counts and a table of all entries, each with a link to its poster file
 - Status tracking for each entry: received, accepted or withdrawn
 - One-click CSV export for judging and catalogue preparation
-- A button to reload the roster when a new enrolment export arrives
+- A roster upload for each year's enrolment list (see [Updating the roster each year](#updating-the-roster-each-year))
 
 ## Running it
 
@@ -46,6 +46,26 @@ The sample roster in `data/roster.sample.csv` contains only fictional students. 
 | 100000005 | e.under@aucklanduni.ac.nz | Rejected (undergraduate) |
 | 100000006 | f.other@aucklanduni.ac.nz | Rejected (Engineering) |
 
+## Updating the roster each year
+
+You don't need the command line for this.
+
+1. Ask the faculty's student services team for the year's postgraduate enrolment export.
+2. Make sure the first row is `student_id,email,name,programme,level,faculty`. You can download a blank template from the dashboard to copy the headings.
+3. Make sure the `level` column uses `PhD`, `Masters`, `Honours`, `PGDip` or `PGCert`.
+4. In Excel, save the file with **File > Save As > CSV UTF-8**.
+5. On the dashboard, go to **Enrolment roster** and click **Upload and replace**.
+
+The file is checked before anything changes:
+
+- **Rejected:** the file isn't replaced at all if it has missing columns, duplicate student IDs, rows with no ID, or no students who could enter (for example when every level says "Doctoral").
+- **Uploaded with warnings:** the file goes live, but the dashboard lists students who won't be able to enter, such as those with an unrecognised level, a non-university email or another faculty. You can fix the file and upload it again.
+- **Backups:** the previous roster is kept in `instance/roster-backups/`, and you can download the live roster at any time.
+
+The uploaded roster is stored in `instance/`, which is left out of git, so real student data never ends up in the repository.
+
+**Start of a new year:** each student can only enter once, and the portal remembers every entry ever made. Start each year with a fresh data folder (for example `DATA_DIR=instance/2027`) so last year's entrants can enter again. A fresh data folder starts on the sample roster, so upload the new list straight after.
+
 ## Configuration
 
 All settings are environment variables.
@@ -54,7 +74,7 @@ All settings are environment variables.
 |---|---|---|
 | `ADMIN_TOKEN` | `change-me` | Access code for the organiser dashboard |
 | `SECRET_KEY` | random | Flask session key (set it in production) |
-| `ROSTER_PATH` | `data/roster.sample.csv` | Enrolment CSV with the columns `student_id,email,name,programme,level,faculty` |
+| `ROSTER_PATH` | `data/roster.sample.csv` | Starting roster, used until one is uploaded from the dashboard |
 | `DATA_DIR` | `instance/` | Location of the database and uploaded posters |
 | `ELIGIBLE_LEVELS` | `PhD,Masters,Honours,PGDip,PGCert` | Programme levels that may enter |
 | `ELIGIBLE_FACULTY` | `Science` | Faculty that may enter |
@@ -70,7 +90,7 @@ All settings are environment variables.
 python -m unittest -v
 ```
 
-The suite has 33 tests. They cover:
+The suite has 44 tests. They cover:
 
 - eligibility rules
 - PDF sizes (A1 in both orientations, rounding tolerance, A0, A4, multi-page and corrupt files)
@@ -79,6 +99,7 @@ The suite has 33 tests. They cover:
 - duplicate entries
 - deadlines
 - the organiser dashboard and CSV export
+- roster uploads (column checks, duplicate IDs, unrecognised levels, Excel encodings, backups)
 
 ## Project structure
 

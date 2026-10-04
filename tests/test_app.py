@@ -121,5 +121,93 @@ class AppTests(unittest.TestCase):
         self.assertEqual(self.client.get(f"/admin/submissions/{sid}/poster").status_code, 200)
 
 
+
+HEADER = "student_id,email,name,programme,level,faculty\n"
+
+
+class RosterUploadTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.config = Config(data_dir=Path(self.tmp.name), roster_path=ROSTER, admin_token="secret")
+        self.app = create_app(self.config)
+        self.client = self.app.test_client()
+        self.client.post("/admin/login", data={"token": "secret"})
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def upload(self, text, name="roster.csv", encoding="utf-8"):
+        data = {"roster": (io.BytesIO(text.encode(encoding)), name)}
+        self.client.post("/admin/roster/upload", data=data, content_type="multipart/form-data")
+        return self.client.get("/admin").data.decode()
+
+    def eligible(self, sid, email):
+        res = self.client.post("/api/check/eligibility", json={"student_id": sid, "email": email})
+        return res.get_json()["eligible"]
+
+    def test_upload_replaces_roster(self):
+        page = self.upload(HEADER + "2000001,new.student@aucklanduni.ac.nz,New Student,MSc,Masters,Science\n")
+        self.assertIn("Roster updated", page)
+        self.assertNotIn("previous roster was backed up", page)
+        self.assertTrue(self.eligible("2000001", "new.student@aucklanduni.ac.nz"))
+        self.assertFalse(self.eligible("100000001", "a.tester@aucklanduni.ac.nz"))  # last year's list is gone
+
+    def test_uploaded_roster_survives_restart(self):
+        self.upload(HEADER + "2000001,new.student@aucklanduni.ac.nz,New Student,MSc,Masters,Science\n")
+        client = create_app(self.config).test_client()
+        res = client.post("/api/check/eligibility", json={"student_id": "2000001", "email": "new.student@aucklanduni.ac.nz"})
+        self.assertTrue(res.get_json()["eligible"])
+
+    def test_second_upload_backs_up_first(self):
+        self.upload(HEADER + "2000001,a@aucklanduni.ac.nz,A,MSc,Masters,Science\n")
+        self.upload(HEADER + "2000002,b@aucklanduni.ac.nz,B,MSc,Masters,Science\n")
+        backups = list((self.config.data_dir / "roster-backups").iterdir())
+        self.assertEqual(len(backups), 1)
+        self.assertIn("2000001", backups[0].read_text())
+
+    def test_missing_columns_rejected_and_roster_unchanged(self):
+        page = self.upload("id,email\n123,x@aucklanduni.ac.nz\n")
+        self.assertIn("wasn't changed", page)
+        self.assertIn("missing these columns", page)
+        self.assertTrue(self.eligible("100000001", "a.tester@aucklanduni.ac.nz"))
+
+    def test_duplicate_ids_rejected(self):
+        page = self.upload(HEADER + "2000001,a@aucklanduni.ac.nz,A,MSc,Masters,Science\n"
+                                    "2000001,b@aucklanduni.ac.nz,B,MSc,Masters,Science\n")
+        self.assertIn("more than once", page)
+
+    def test_unrecognised_levels_rejected_when_no_one_eligible(self):
+        page = self.upload(HEADER + "2000001,a@aucklanduni.ac.nz,A,PhD Biology,Doctoral,Science\n")
+        self.assertIn("No one in this file would be able to enter", page)
+        self.assertIn("Doctoral", page)
+
+    def test_warnings_for_partial_problems(self):
+        page = self.upload(HEADER + "2000001,a@aucklanduni.ac.nz,A,MSc,Masters,Science\n"
+                                    "2000002,b@aucklanduni.ac.nz,B,PhD,Doctoral,Science\n"
+                                    "2000003,c@gmail.com,C,MSc,Masters,Science\n")
+        self.assertIn("Roster updated", page)
+        self.assertIn("3 students loaded, 1 of them able to enter", page)
+        self.assertIn("Doctoral (1)", page)
+        self.assertIn("2000003", page)
+
+    def test_excel_plain_csv_encoding_accepted(self):
+        page = self.upload(HEADER + "2000001,a@aucklanduni.ac.nz,Zoë Müller,MSc,Masters,Science\n", encoding="cp1252")
+        self.assertIn("Roster updated", page)
+
+    def test_non_csv_rejected(self):
+        self.assertIn("Upload a .csv file", self.upload("x", name="roster.xlsx"))
+
+    def test_template_and_current_downloads(self):
+        self.assertIn(b"student_id,email", self.client.get("/admin/roster/template.csv").data)
+        self.assertIn(b"100000001", self.client.get("/admin/roster/current.csv").data)
+
+    def test_upload_requires_login(self):
+        client = self.app.test_client()
+        res = client.post("/admin/roster/upload", data={"roster": (io.BytesIO(b"x"), "r.csv")},
+                          content_type="multipart/form-data")
+        self.assertEqual(res.status_code, 302)
+        self.assertTrue(self.eligible("100000001", "a.tester@aucklanduni.ac.nz"))
+
+
 if __name__ == "__main__":
     unittest.main()
